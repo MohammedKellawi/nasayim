@@ -43,7 +43,7 @@ Every push to `main` builds and deploys the site. This needs a one-time setting 
 | Add a relief program | Add an object to `programs` in `src/data/programs.mjs`. Its Arabic and English pages are created automatically. |
 | Add a development project | Add an object to `developmentProjects` (same fields as a program). It gets a page at `/development/<slug>/`. |
 | Add a property/facility | Add an object to `facilities`. Never include deeds, parcel numbers or prices. |
-| Add gallery images | Put optimised `.webp` files in `public/images/…` and add `{ src, category, alt: { ar, en }, w, h }` to `gallery`. The Gallery page and its menu link appear once the list is not empty. Program pages show their own `images`. |
+| Add photos | Save `public/images/<key>.webp` (about 1600px wide) and `<key>-sm.webp` (800px), add the key to `photos` in `src/data/programs.mjs` with its category and Arabic/English alt text, add its size to `src/data/image-sizes.json`, and list the key under a program's `images` if it belongs there. Every photo appears in the Gallery. |
 | Edit Arabic/English text | `src/i18n.mjs` (interface/pages) or `src/data/programs.mjs` (program content). |
 | Impact numbers | `stats` in `src/data/site.mjs`. Change only with an official decision. |
 | Phone, email, WhatsApp, Facebook, address | `site` in `src/data/site.mjs`. |

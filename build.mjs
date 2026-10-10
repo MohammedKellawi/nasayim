@@ -3,7 +3,8 @@
 import { mkdirSync, writeFileSync, cpSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { site, stats, waLink } from './src/data/site.mjs';
-import { programs, developmentProjects, facilities, gallery } from './src/data/programs.mjs';
+import { programs, developmentProjects, facilities, gallery, photos } from './src/data/programs.mjs';
+const sizes = JSON.parse(readFileSync('src/data/image-sizes.json', 'utf8'));
 import { t } from './src/i18n.mjs';
 
 const OUT = 'dist';
@@ -18,6 +19,13 @@ const u = (lang, p = '') => `${BASE}${lang}/${p}`;
 const asset = (p) => `${BASE}${p}`;
 const ext = 'target="_blank" rel="noopener noreferrer"';
 const hasGallery = gallery.length > 0;
+
+// Responsive photo from the catalog (public/images/<key>.webp + <key>-sm.webp).
+const alt = (key, lang) => photos[key][lang === 'ar' ? 1 : 2];
+function img(key, lang, { cls = '', sizesAttr = '(min-width: 900px) 50vw, 100vw', eager = false, decorative = false } = {}) {
+  const [w, h] = sizes[key];
+  return `<img class="${cls}" src="${asset(`images/${key}.webp`)}" srcset="${asset(`images/${key}-sm.webp`)} 800w, ${asset(`images/${key}.webp`)} ${w}w" sizes="${sizesAttr}" width="${w}" height="${h}" alt="${decorative ? '' : esc(alt(key, lang))}" ${eager ? 'fetchpriority="high"' : 'loading="lazy"'} decoding="async">`;
+}
 
 // Lucide icons (ISC license), inlined.
 const P = {
@@ -177,7 +185,9 @@ const statsBlock = (lang, dark = true) => `<ul class="stats ${dark ? 'stats-dark
 
 const programCard = (lang, p, big = false) => {
   const s = p.stat && statById[p.stat];
-  return `<article class="pcard${big ? ' pcard-big' : ''}">
+  const cover = p.images?.[0];
+  return `<article class="pcard${big ? ' pcard-big' : ''}${cover ? ' has-img' : ''}">
+  ${cover ? `<div class="pcard-img">${img(cover, lang, { sizesAttr: '(min-width: 1000px) 33vw, (min-width: 700px) 50vw, 100vw', decorative: true })}</div>` : ''}
   <span class="pcard-ic">${icon(p.icon)}</span>
   <h3><a href="${u(lang, `programs/${p.slug}/`)}" class="stretch">${p.title[lang]}</a></h3>
   <p class="tag">${p.tagline[lang]}</p>
@@ -225,8 +235,8 @@ function home(lang) {
         <a class="btn btn-outline" href="${u(lang, 'get-involved/')}">${L.hero.cta2}</a>
       </div>
     </div>
-    <div class="hero-art" aria-hidden="true">
-      <img src="${asset('assets/emblem.png')}" alt="" width="560" height="560" fetchpriority="high">
+    <div class="hero-art">
+      ${img('relief-3', lang, { cls: 'hero-photo', eager: true, sizesAttr: '(min-width: 900px) 45vw, 100vw' })}
       <span class="since">${L.since}</span>
     </div>
   </div>
@@ -268,6 +278,14 @@ function home(lang) {
       <a class="link-arrow" href="${u(lang, 'programs/')}">${L.programsSec.all} ${icon('arrow')}</a></div>
     <p class="sec-lead">${L.programsSec.lead}</p>
     <div class="pgrid">${programCard(lang, first, true)}${rest.map((p) => programCard(lang, p)).join('')}</div>
+  </div>
+</section>
+
+<section class="section field-sec">
+  <div class="container">
+    <div class="sec-row"><h2 class="sec-title">${lang === 'ar' ? 'من الميدان' : 'From the field'}</h2>
+      <a class="link-arrow" href="${u(lang, 'gallery/')}">${L.nav.gallery} ${icon('arrow')}</a></div>
+    <div class="mosaic">${['home-2', 'food-1', 'relief-4', 'health-1', 'relief-1'].map((k) => `<a href="${u(lang, `programs/${photos[k][0]}/`)}">${img(k, lang, { sizesAttr: '(min-width: 900px) 33vw, 50vw' })}</a>`).join('')}</div>
   </div>
 </section>
 
@@ -335,10 +353,11 @@ ${ctaBand(lang)}`;
   return page({ lang, key: 'programs', path: 'programs/', title: L.meta.programs[0], desc: L.meta.programs[1], body, crumbs: [[L.nav.programs, 'programs/']] });
 }
 
+const galItem = (key, lang) => `<button type="button" class="gal-item" data-cat="${photos[key][0]}" data-src="${asset(`images/${key}.webp`)}" data-caption="${esc(alt(key, lang))}">
+    ${img(key, lang, { sizesAttr: '(min-width: 1000px) 33vw, (min-width: 600px) 50vw, 100vw' })}</button>`;
 function galleryStrip(lang, images) {
   if (!images.length) return '';
-  return `<div class="gal-grid" data-gallery>${images.map((im, i) => `<button type="button" class="gal-item" data-src="${asset(im.src)}" data-caption="${esc(im.alt[lang])}">
-    <img src="${asset(im.src)}" alt="${esc(im.alt[lang])}" width="${im.w}" height="${im.h}" loading="lazy" decoding="async"></button>`).join('')}</div>`;
+  return `<div class="gal-grid" data-gallery>${images.map((k) => galItem(k, lang)).join('')}</div>`;
 }
 
 function programPage(lang, p) {
@@ -349,10 +368,11 @@ function programPage(lang, p) {
   const body = `<section class="page-head prog-head"><div class="container">
   <span class="pcard-ic big">${icon(p.icon)}</span>
   <p class="eyebrow">${L.programsSec.relief}</p><h1>${p.title[lang]}</h1><p class="lead tagline">${p.tagline[lang]}</p></div></section>
+${p.images.length ? `<div class="container page-photo">${img(p.images[0], lang, { eager: true, sizesAttr: '(min-width: 1200px) 1150px, 100vw' })}</div>` : ''}
 <section class="section"><div class="container split split-wide">
   <div class="prose"><h2>${G.overview}</h2>${p.body[lang].map((x) => `<p>${x}</p>`).join('')}
     <h2>${G.activities}</h2><ul class="ticks">${p.activities[lang].map((a) => `<li>${icon('check')}<span>${a}</span></li>`).join('')}</ul>
-    ${galleryStrip(lang, p.images)}
+    ${p.images.length > 1 ? `<h2>${lang === 'ar' ? 'من الميدان' : 'From the field'}</h2>${galleryStrip(lang, p.images.slice(1))}` : ''}
   </div>
   <aside class="side">
     ${s ? `<div class="side-stat"><p class="eyebrow">${G.impact}</p><span class="num"><span data-count="${s.value}">${s.value}</span>+</span><span class="lbl">${s[lang]}</span></div>` : ''}
@@ -371,8 +391,8 @@ function development(lang) {
   const L = t[lang], D = L.dev;
   const pillarIcons = ['graduation', 'heartHand', 'sprout'];
   const projects = developmentProjects.length ? `<section class="section"><div class="container"><h2 class="sec-title">${D.projects}</h2>
-    <div class="pgrid">${developmentProjects.map((p) => `<article class="pcard"><span class="pcard-ic">${icon('sprout')}</span>
-      <h3><a class="stretch" href="${u(lang, `development/${p.slug}/`)}">${p.title[lang]}</a></h3><p class="tag">${p.tagline[lang]}</p>
+    <div class="pgrid">${developmentProjects.map((p) => `<article class="pcard has-img">${p.images?.[0] ? `<div class="pcard-img">${img(p.images[0], lang, { decorative: true })}</div>` : ''}<span class="pcard-ic">${icon('sprout')}</span>
+      <h3><a class="stretch" href="${u(lang, `development/${p.slug}/`)}">${p.title[lang]}</a></h3><p class="tag">${p.tagline[lang]}</p><p>${p.summary[lang]}</p>
       <div class="pcard-foot"><span></span><span class="more">${L.learnMore} ${icon('arrow')}</span></div></article>`).join('')}</div></div></section>` : '';
   const body = `${pageHead(L.tracks.dev, D.title, D.lead, `<p class="tagline">${D.tagline}</p>`)}
 <section class="section"><div class="container">
@@ -392,9 +412,10 @@ function devProjectPage(lang, p) {
   const L = t[lang];
   const path = `development/${p.slug}/`;
   const body = `${pageHead(L.tracks.dev, p.title[lang], p.tagline[lang])}
+${p.images?.length ? `<div class="container page-photo">${img(p.images[0], lang, { eager: true, sizesAttr: '(min-width: 1200px) 1150px, 100vw' })}</div>` : ''}
 <section class="section"><div class="container prose">${(p.body?.[lang] || []).map((x) => `<p>${x}</p>`).join('')}
 ${p.activities ? `<ul class="ticks">${p.activities[lang].map((a) => `<li>${icon('check')}<span>${a}</span></li>`).join('')}</ul>` : ''}
-${galleryStrip(lang, p.images || [])}</div></section>${ctaBand(lang)}`;
+${galleryStrip(lang, (p.images || []).slice(1))}<p><a class="link-arrow" href="${u(lang, 'programs/relieving-distress/')}">${programs.find((x) => x.slug === 'relieving-distress').title[lang]} ${icon('arrow')}</a></p></div></section>${ctaBand(lang)}`;
   return page({ lang, key: 'development', path, title: p.title[lang], desc: p.tagline[lang], body, crumbs: [[L.nav.development, 'development/'], [p.title[lang], path]] });
 }
 
@@ -433,14 +454,13 @@ ${ctaBand(lang)}`;
 
 function galleryPage(lang) {
   const L = t[lang], G = L.gallery;
-  const cats = [...new Set(gallery.map((g) => g.category))];
-  const catLabel = (c) => programs.find((p) => p.slug === c)?.title[lang] || c;
+  const cats = [...new Set(gallery.map((k) => photos[k][0]))];
+  const catLabel = (c) => [...programs, ...developmentProjects].find((p) => p.slug === c)?.title[lang] || c;
   const body = `${pageHead('', G.title, G.lead)}
 <section class="section"><div class="container">
   <div class="filters" role="group" aria-label="${G.title}"><button type="button" aria-pressed="true" data-filter="*">${G.all}</button>
   ${cats.map((c) => `<button type="button" aria-pressed="false" data-filter="${c}">${catLabel(c)}</button>`).join('')}</div>
-  <div class="gal-grid" data-gallery data-paged>${gallery.map((im) => `<button type="button" class="gal-item" data-cat="${im.category}" data-src="${asset(im.src)}" data-caption="${esc(im.alt[lang])}">
-    <img src="${asset(im.src)}" alt="${esc(im.alt[lang])}" width="${im.w}" height="${im.h}" loading="lazy" decoding="async"></button>`).join('')}</div>
+  <div class="gal-grid" data-gallery data-paged>${gallery.map((k) => galItem(k, lang)).join('')}</div>
   <p class="empty" hidden>${G.empty}</p>
   <button type="button" class="btn btn-outline more-btn" hidden>${G.more}</button>
 </div></section>`;
